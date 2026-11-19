@@ -131,3 +131,18 @@ body[data-page=auth] .nav,body[data-page=auth] .top{display:none}
 .wa,.wab{background:#25d366;color:#fff;border-radius:14px;padding:8px 14px;font-size:12px;font-weight:500;border-color:#25d366}
 .boxf{background:#fff;border-radius:20px;padding:14px;margin-bottom:14px}
 .ghost.fl{margin:0;color:var(--tx);cursor:pointer}
+
+/* ---- banner de inicio (tamaño único, imágenes recortadas) ---- */
+.bn{position:relative;overflow:hidden;border-radius:26px;aspect-ratio:16/8;margin:6px 0 14px;background:#1b0b3a;box-shadow:0 8px 24px #0005}
+@media(min-width:640px){.bn{aspect-ratio:16/6}}
+.btrack{display:flex;height:100%;transition:transform .6s ease}
+.bs{flex:0 0 100%;height:100%;position:relative}.bs a{display:block;height:100%}
+.bs img,.bs video{width:100%;height:100%;object-fit:cover;display:block}
+.bcap{position:absolute;left:0;right:0;bottom:0;padding:30px 16px 14px;background:linear-gradient(transparent,rgba(20,6,40,.88));color:#fff;display:flex;flex-direction:column;gap:2px}
+.bcap b{font-size:17px;max-width:75%}.bcap span{font-size:12px;opacity:.92;max-width:75%}
+.bdots{position:absolute;right:12px;bottom:10px;display:flex;gap:6px}
+.bd{width:7px;height:7px;border-radius:6px;background:#fff7;transition:.3s}.bd.on{width:20px;background:#fff}
+/* categorías: todas del mismo tamaño y con margen */
+.ccard{padding:8px}.ccard .ph{border-radius:16px;overflow:hidden}.ccard .cb{padding:8px 4px 4px;text-align:center}
+.ph video{width:100%;height:100%;object-fit:cover}
+.chk2{display:flex;align-items:center;gap:6px;margin:6px 0 0;color:var(--tx)}.chk2 input{width:auto}
