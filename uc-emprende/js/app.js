@@ -20,10 +20,29 @@ const V=h=>{$('#view').innerHTML=h};
 const ok=r=>{if(r.error)throw r.error;return r.data||[]};
 const catIc=n=>{const c=CAT.find(x=>x.name===n);return c?.image_url?`<img src="${esc(c.image_url)}" alt="">`:(c?.emoji||EMO[n]||'🛍️')};
 const wa=n=>{n=String(n||'').replace(/\D/g,'');return n.length===9?'51'+n:n};
+const safeLink=l=>/^(#\/|https:\/\/)/.test(l||'')?l:'';
+const bslide=b=>{const lk=safeLink(b.link);
+  const media=b.media_type==='video'?`<video src="${esc(b.media_url)}" muted loop playsinline preload="metadata"></video>`:`<img src="${esc(b.media_url)}" alt="${esc(b.title)}">`;
+  const inner=`${media}${b.title||b.subtitle?`<div class="bcap"><b>${esc(b.title)}</b><span>${esc(b.subtitle)}</span></div>`:''}`;
+  return `<div class="bs">${lk?`<a href="${esc(lk)}" ${lk.startsWith('http')?'target="_blank" rel="noopener"':''}>${inner}</a>`:inner}</div>`};
+const bannerHTML=l=>`<div class="bn" id="bn"><div class="btrack">${l.map(bslide).join('')}</div>${l.length>1?`<div class="bdots">${l.map((_,i)=>`<button class="bd" aria-label="Banner ${i+1}"></button>`).join('')}</div>`:''}</div>`;
+function initBanner(){
+  const box=$('#bn');if(!box)return;
+  const slides=$$('.bs',box),dots=$$('.bd',box);if(!slides.length)return;
+  const go=i=>{BI=(i+slides.length)%slides.length;$('.btrack',box).style.transform=`translateX(-${BI*100}%)`;
+    dots.forEach((d,k)=>d.classList.toggle('on',k===BI));
+    slides.forEach((sl,k)=>{const v=$('video',sl);if(v){if(k===BI)v.play().catch(()=>{});else v.pause()}})};
+  const reset=()=>{clearInterval(BT);if(slides.length>1)BT=setInterval(()=>go(BI+1),30000)};
+  dots.forEach((d,k)=>d.onclick=()=>{go(k);reset()});
+  let x0=null;
+  box.addEventListener('touchstart',e=>{x0=e.touches[0].clientX},{passive:true});
+  box.addEventListener('touchend',e=>{if(x0===null)return;const dx=e.changedTouches[0].clientX-x0;if(Math.abs(dx)>40){go(BI+(dx<0?1:-1));reset()}x0=null});
+  go(0);reset();
+}
 async function loadCats(){try{CAT=ok(await sb.from('categories').select('*').order('sort').order('name'))}catch{CAT=[]}if(!CAT.length)CAT=DEFCATS.map(name=>({name,emoji:EMO[name]}))}
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2400)}
 
-let sb,me=null,prof=null,unread=0,ch=null,SQ='',AM='register',MY=[],LIST=[],LASTCAT='';
+let sb,me=null,prof=null,unread=0,ch=null,SQ='',AM='register',MY=[],LIST=[],LASTCAT='',BT=null,BI=0;
 let F={sort:'new',min:'',max:'',stock:false};
 const cart={get:()=>{try{return JSON.parse(localStorage.uc_cart||'[]')}catch{return[]}},set:v=>{localStorage.uc_cart=JSON.stringify(v);badges()}};
 
@@ -60,16 +79,18 @@ function addBubble(m){const t=$('#thread');if(!t)return;t.insertAdjacentHTML('be
 /* ---------- páginas ---------- */
 async function home(){
   SQ='';
+  let bans=[];try{bans=ok(await sb.from('banners').select('*').eq('active',true).order('created_at'))}catch{}
   const ps=ok(await sb.from('products').select('*').order('created_at',{ascending:false}).limit(40));
   const fe=ps.filter(p=>p.featured),top=(fe.length?fe:ps).slice(0,6),rest=ps.filter(p=>!top.includes(p)).slice(0,8);
-  V(`<section class="hero"><div><h1>Compra y vende entre universitarios</h1><a class="btn light" href="#/categoria/Todos">Explorar</a></div><span>🎓</span></section>
+  V(`${bans.length?bannerHTML(bans):`<section class="hero"><div><h1>Compra y vende entre universitarios</h1><a class="btn light" href="#/categoria/Todos">Explorar</a></div><span>🎓</span></section>`}
   <form class="search" data-form="search">${I('search')}<input name="q" placeholder="Buscar productos…"></form>
   <div class="sh"><h2>Categorías</h2><a href="#/categorias">Ver todo</a></div>
   <div class="cats">${CAT.map(c=>`<a class="cat" href="#/categoria/${encodeURIComponent(c.name)}"><b>${catIc(c.name)}</b>${esc(c.name)}</a>`).join('')}</div>
   <div class="sh"><h2>⭐ Destacados</h2></div><div class="grid">${top.map(p=>pcard(p)).join('')||'<p class="empty">Aún no hay productos. ¡Sé el primero en publicar!</p>'}</div>
   ${rest.length?`<div class="sh"><h2>Recién publicados</h2><a href="#/categoria/Todos">Ver más</a></div><div class="grid">${rest.map(p=>pcard(p)).join('')}</div>`:''}`);
+  initBanner();
 }
-const categorias=()=>V(`<h2 class="pt">Categorías</h2><div class="grid">${[{name:'Todos'},...CAT].map(c=>`<a class="card" href="#/categoria/${encodeURIComponent(c.name)}"><div class="ph">${catIc(c.name)}</div><div class="cb"><b>${esc(c.name)}</b></div></a>`).join('')}</div>`);
+const categorias=()=>V(`<h2 class="pt">Categorías</h2><div class="grid">${[{name:'Todos'},...CAT].map(c=>`<a class="card ccard" href="#/categoria/${encodeURIComponent(c.name)}"><div class="ph">${catIc(c.name)}</div><div class="cb"><b>${esc(c.name)}</b></div></a>`).join('')}</div>`);
 const applyF=()=>{let l=LIST.filter(p=>(!F.stock||p.stock>0)&&(F.min===''||p.price>=+F.min)&&(F.max===''||p.price<=+F.max)&&p.name.toLowerCase().includes(SQ.toLowerCase()));
   if(F.sort==='asc')l.sort((a,b)=>a.price-b.price);if(F.sort==='desc')l.sort((a,b)=>b.price-a.price);return l};
 const listHTML=()=>{const l=applyF();return`<p class="cnt">${l.length} producto${l.length===1?'':'s'}</p><div class="grid">${l.map(p=>pcard(p)).join('')||'<p class="empty">No hay productos con esos filtros</p>'}</div>`};
@@ -120,7 +141,7 @@ const authView=()=>V(`<div class="authw"><div class="brand">UC <span>Emprende</s
   <label>Correo</label><input name="email" type="email" required><label>Contraseña</label><input name="password" type="password" minlength="6" required>
   ${AM==='register'?'<label>Quiero</label><select name="role"><option value="comprador">Comprar</option><option value="vendedor">Vender y comprar</option></select>':''}
   <button class="btn">${AM==='login'?'Ingresar':'Crear cuenta'}</button></form></section></div>`);
-const perfil=()=>(me&&prof?profile(me.id):authView());
+const perfil=()=>profile(me.id);
 const vender=async()=>{
   if(!need())return;
   if(prof.role==='comprador')return V('<p class="empty">Activa tu cuenta de vendedor desde tu perfil.<br><a class="btn" href="#/perfil">Ir a mi perfil</a></p>');
@@ -178,8 +199,11 @@ async function chat(id){
 }
 async function admin(){
   if(prof?.role!=='admin')return V('<p class="empty">Solo administradores</p>');
-  const [r1,r2]=await Promise.all([sb.from('profiles').select('*').order('created_at'),sb.from('products').select('*, seller:profiles(name)').order('created_at',{ascending:false})]);const us=ok(r1),ps=ok(r2);
+  const [r1,r2,r3]=await Promise.all([sb.from('profiles').select('*').order('created_at'),sb.from('products').select('*, seller:profiles(name)').order('created_at',{ascending:false}),sb.from('banners').select('*').order('created_at')]);const us=ok(r1),ps=ok(r2),bans=ok(r3);
   V(`<h2 class="pt">Panel de administración</h2>
+  <h3>Banner de inicio (${bans.length})</h3>
+  <form class="boxf" data-form="newban"><label>Imagen o video (máx. 25 MB)</label><input name="media" type="file" accept="image/*,video/*" required><div class="two"><div><label>Título</label><input name="title" maxlength="60"></div><div><label>Subtítulo</label><input name="subtitle" maxlength="90"></div></div><label>Enlace (opcional)</label><input name="link" placeholder="#/categoria/Comida  o  https://…"><button class="btn full">Agregar al banner</button></form>
+  <div class="grid">${bans.map(b=>`<div class="card"><div class="ph">${b.media_type==='video'?`<video src="${esc(b.media_url)}" muted playsinline preload="metadata"></video>`:`<img src="${esc(b.media_url)}" alt="">`}</div><div class="cb"><b>${esc(b.title)||'(sin título)'}</b><small>${b.media_type==='video'?'🎬 Video':'🖼️ Imagen'}</small><label class="chk2"><input type="checkbox" data-banact="${b.id}" ${b.active?'checked':''}> Activo</label></div><div class="row"><button class="ghost sm danger" data-act="delBan" data-id="${b.id}">Borrar</button></div></div>`).join('')}</div>
   <h3>Categorías (${CAT.length})</h3>
   <form class="boxf" data-form="newcat"><div class="two"><div><label>Nombre</label><input name="name" required></div><div><label>Emoji</label><input name="emoji" placeholder="🍕" maxlength="4"></div></div><label>Foto (opcional)</label><input name="photo" type="file" accept="image/*"><button class="btn full">Agregar categoría</button></form>
   <div class="grid">${CAT.filter(c=>c.id).map(c=>`<div class="card"><div class="ph">${catIc(c.name)}</div><div class="cb"><b>${esc(c.name)}</b></div><div class="row"><label class="ghost sm fl">Cambiar foto<input type="file" accept="image/*" data-catimg="${c.id}" hidden></label><button class="ghost sm danger" data-act="delCat" data-id="${c.id}">Borrar</button></div></div>`).join('')}</div>
@@ -192,6 +216,7 @@ const PAGES={'':home,categorias,categoria,vendedores,vendedor:profile,producto,c
 const NAVMAP={'':'',categorias:'categorias',categoria:'categorias',vendedores:'vendedores',vendedor:'vendedores',carrito:'carrito',perfil:'perfil',vender:'perfil',pedidos:'perfil',admin:'perfil'};
 async function route(){
   const [,page='',arg='']=location.hash.slice(1).split('/');
+  clearInterval(BT);
   if(!me){document.body.dataset.page='auth';window.scrollTo(0,0);return authView()}
   document.body.dataset.page=page;
   $$('.nav a').forEach(a=>a.classList.toggle('on',a.dataset.n===(NAVMAP[page]??'x')));
@@ -200,10 +225,18 @@ async function route(){
 }
 
 /* ---------- fotos ---------- */
-const shrink=(f,max=900)=>new Promise(res=>{const i=new Image();i.onload=()=>{const r=Math.min(1,max/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=i.width*r;c.height=i.height*r;c.getContext('2d').drawImage(i,0,0,c.width,c.height);c.toBlob(res,'image/jpeg',.82)};i.src=URL.createObjectURL(f)});
-async function upload(file,max=900){
+const shrink=(f,max=900,sq=false)=>new Promise(res=>{const i=new Image();i.onload=()=>{let sx=0,sy=0,sw=i.width,sh=i.height;if(sq){const m=Math.min(sw,sh);sx=(sw-m)/2;sy=(sh-m)/2;sw=sh=m}const r=Math.min(1,max/Math.max(sw,sh)),c=document.createElement('canvas');c.width=sw*r;c.height=sh*r;c.getContext('2d').drawImage(i,sx,sy,sw,sh,0,0,c.width,c.height);c.toBlob(res,'image/jpeg',.82)};i.src=URL.createObjectURL(f)});
+async function upload(file,max=900,sq=false){
   toast('Subiendo foto…');const path=`${me.id}/${Date.now()}.jpg`;
-  const {error}=await sb.storage.from('media').upload(path,await shrink(file,max),{contentType:'image/jpeg'});if(error)throw error;
+  const {error}=await sb.storage.from('media').upload(path,await shrink(file,max,sq),{contentType:'image/jpeg'});if(error)throw error;
+  return sb.storage.from('media').getPublicUrl(path).data.publicUrl;
+}
+
+async function uploadVideo(file){
+  if(file.size>25*1024*1024)throw new Error('El video pesa más de 25 MB. Usa uno más corto o comprímelo.');
+  toast('Subiendo video…');
+  const ext=(file.name.split('.').pop()||'mp4').toLowerCase().replace(/[^a-z0-9]/g,'')||'mp4',path=`${me.id}/${Date.now()}.${ext}`;
+  const {error}=await sb.storage.from('media').upload(path,file,{contentType:file.type||'video/mp4'});if(error)throw error;
   return sb.storage.from('media').getPublicUrl(path).data.publicUrl;
 }
 
@@ -211,13 +244,7 @@ async function upload(file,max=900){
 const ACT={
   back:()=>history.length>1?history.back():(location.hash='#/'),
   am:id=>{AM=id;route()},closeDlg:()=>$('#dlg').close(),
-  logout:async()=>{
-    try{await sb.auth.signOut({scope:'local'})}catch{}
-    await setUser(null);
-    location.hash='#/perfil';
-    route();
-    toast('Sesión cerrada');
-  },
+  logout:async()=>{await sb.auth.signOut();toast('Sesión cerrada')},
   toggleEdit:()=>{const f=$('#ef');f.hidden=!f.hidden;if(!f.hidden)f.scrollIntoView({behavior:'smooth'})},
   beSeller:async()=>{const {error}=await sb.from('profiles').update({role:'vendedor'}).eq('id',me.id);if(error)return toast(error.message);await setUser(me);toast('¡Ya puedes vender!');route()},
   msg:id=>{if(!need())return;if(id===me.id)return toast('Ese eres tú 😅');location.hash='#/chat/'+id},
@@ -239,6 +266,7 @@ const ACT={
     cart.set(items.filter(x=>!g.some(y=>y.p.id===x.id)));delete PT[sid];
     toast('¡Pedido enviado! Coordina con el vendedor');location.hash='#/chat/'+sid},
   ost:async(id,t)=>{const {error}=await sb.from('orders').update({status:t.dataset.s}).eq('id',id);if(error)toast(error.message);route()},
+  delBan:async id=>{if(!confirm('¿Quitar este banner?'))return;const {error}=await sb.from('banners').delete().eq('id',id);if(error)toast(error.message);route()},
   delCat:async id=>{if(!confirm('¿Borrar esta categoría? Los productos no se eliminan.'))return;const {error}=await sb.from('categories').delete().eq('id',id);if(error)toast(error.message);route()},
   qk:t=>{const i=$('.chf input');i.value=t;i.focus()},
   delRev:async id=>{if(!confirm('¿Borrar tu opinión?'))return;const {error}=await sb.from('reviews').delete().eq('id',id);if(error)toast(error.message);route()},
@@ -256,8 +284,14 @@ const FORMS={
     if(a&&a.size)row.avatar_url=await upload(a);
     if(cv&&cv.size)row.cover_url=await upload(cv,1400);
     const {error}=await sb.from('profiles').update(row).eq('id',me.id);if(error)throw error;await setUser(me);toast('Perfil actualizado');route()},
+  newban:async fd=>{const f=fd.get('media'),lk=fd.get('link').trim();
+    if(!f||!f.size)throw new Error('Elige una imagen o un video');
+    if(lk&&!safeLink(lk))throw new Error('El enlace debe empezar con #/ o https://');
+    const vid=f.type.startsWith('video/'),url=vid?await uploadVideo(f):await upload(f,1600);
+    const {error}=await sb.from('banners').insert({media_url:url,media_type:vid?'video':'image',title:fd.get('title').trim(),subtitle:fd.get('subtitle').trim(),link:lk,active:true});
+    if(error)throw error;toast('Banner agregado');route()},
   newcat:async fd=>{const f=fd.get('photo'),row={name:fd.get('name').trim(),emoji:fd.get('emoji').trim()||'🛍️',sort:CAT.length+1};
-    if(f&&f.size)row.image_url=await upload(f,600);
+    if(f&&f.size)row.image_url=await upload(f,600,true);
     const {error}=await sb.from('categories').insert(row);if(error)throw error;toast('Categoría agregada');route()},
   product:async fd=>{const id=fd.get('id'),row={name:fd.get('name'),price:+fd.get('price'),stock:+fd.get('stock'),category:fd.get('category'),description:fd.get('description')},f=fd.get('photo');
     if(f&&f.size)row.image_url=await upload(f);
@@ -276,7 +310,8 @@ document.addEventListener('input',e=>{if(e.target.dataset.pt!==undefined){PT[e.t
 document.addEventListener('change',async e=>{const t=e.target;
   if(t.dataset.role){const {error}=await sb.from('profiles').update({role:t.value}).eq('id',t.dataset.role);toast(error?error.message:'Rol actualizado')}
   if(t.dataset.feat){const {error}=await sb.from('products').update({featured:t.checked}).eq('id',t.dataset.feat);toast(error?error.message:'Listo')}
-  if(t.dataset.catimg&&t.files[0]){try{const url=await upload(t.files[0],600);const {error}=await sb.from('categories').update({image_url:url}).eq('id',t.dataset.catimg);toast(error?error.message:'Foto actualizada');route()}catch(err){toast(err.message)}}});
+  if(t.dataset.banact){const {error}=await sb.from('banners').update({active:t.checked}).eq('id',t.dataset.banact);toast(error?error.message:'Listo')}
+  if(t.dataset.catimg&&t.files[0]){try{const url=await upload(t.files[0],600,true);const {error}=await sb.from('categories').update({image_url:url}).eq('id',t.dataset.catimg);toast(error?error.message:'Foto actualizada');route()}catch(err){toast(err.message)}}});
 
 /* ---------- inicio ---------- */
 (async function init(){
@@ -284,9 +319,6 @@ document.addEventListener('change',async e=>{const t=e.target;
   if(SUPABASE_URL.startsWith('PEGA')){return V('<div class="auth"><h1>Falta configurar</h1><p class="mu">Abre <b>js/config.js</b> y pega la URL y la clave de tu proyecto Supabase (ver README).</p></div>')}
   sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
   const {data:{session}}=await sb.auth.getSession();await setUser(session?.user);
-  sb.auth.onAuthStateChange((_e,s)=>{
-    const nextId=s?.user?.id||null,prevId=me?.id||null;
-    if(nextId!==prevId){setUser(s?.user).then(()=>{if(nextId)location.hash='#/';route()})}
-  });
+  sb.auth.onAuthStateChange((_e,s)=>{if((s?.user?.id||null)!==(me?.id||null))setUser(s?.user).then(()=>{location.hash='#/';route()})});
   addEventListener('hashchange',route);route();
 })();
