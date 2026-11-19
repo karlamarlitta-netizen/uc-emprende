@@ -120,7 +120,7 @@ const authView=()=>V(`<div class="authw"><div class="brand">UC <span>Emprende</s
   <label>Correo</label><input name="email" type="email" required><label>Contraseña</label><input name="password" type="password" minlength="6" required>
   ${AM==='register'?'<label>Quiero</label><select name="role"><option value="comprador">Comprar</option><option value="vendedor">Vender y comprar</option></select>':''}
   <button class="btn">${AM==='login'?'Ingresar':'Crear cuenta'}</button></form></section></div>`);
-const perfil=()=>profile(me.id);
+const perfil=()=>(me&&prof?profile(me.id):authView());
 const vender=async()=>{
   if(!need())return;
   if(prof.role==='comprador')return V('<p class="empty">Activa tu cuenta de vendedor desde tu perfil.<br><a class="btn" href="#/perfil">Ir a mi perfil</a></p>');
@@ -211,7 +211,13 @@ async function upload(file,max=900){
 const ACT={
   back:()=>history.length>1?history.back():(location.hash='#/'),
   am:id=>{AM=id;route()},closeDlg:()=>$('#dlg').close(),
-  logout:async()=>{await sb.auth.signOut();toast('Sesión cerrada')},
+  logout:async()=>{
+    try{await sb.auth.signOut({scope:'local'})}catch{}
+    await setUser(null);
+    location.hash='#/perfil';
+    route();
+    toast('Sesión cerrada');
+  },
   toggleEdit:()=>{const f=$('#ef');f.hidden=!f.hidden;if(!f.hidden)f.scrollIntoView({behavior:'smooth'})},
   beSeller:async()=>{const {error}=await sb.from('profiles').update({role:'vendedor'}).eq('id',me.id);if(error)return toast(error.message);await setUser(me);toast('¡Ya puedes vender!');route()},
   msg:id=>{if(!need())return;if(id===me.id)return toast('Ese eres tú 😅');location.hash='#/chat/'+id},
@@ -278,6 +284,9 @@ document.addEventListener('change',async e=>{const t=e.target;
   if(SUPABASE_URL.startsWith('PEGA')){return V('<div class="auth"><h1>Falta configurar</h1><p class="mu">Abre <b>js/config.js</b> y pega la URL y la clave de tu proyecto Supabase (ver README).</p></div>')}
   sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
   const {data:{session}}=await sb.auth.getSession();await setUser(session?.user);
-  sb.auth.onAuthStateChange((_e,s)=>{if((s?.user?.id||null)!==(me?.id||null))setUser(s?.user).then(()=>{location.hash='#/';route()})});
+  sb.auth.onAuthStateChange((_e,s)=>{
+    const nextId=s?.user?.id||null,prevId=me?.id||null;
+    if(nextId!==prevId){setUser(s?.user).then(()=>{if(nextId)location.hash='#/';route()})}
+  });
   addEventListener('hashchange',route);route();
 })();
